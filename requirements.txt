@@ -5,3 +5,4 @@ opencv-python
 albumentations
 torch
 scipy
+matplotlib

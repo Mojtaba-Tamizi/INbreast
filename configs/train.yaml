@@ -1,10 +1,38 @@
 seed: 42
 
 training:
+  epochs: 50
   batch_size: 8
   num_workers: 4
   pin_memory: true
+  val_every: 1
+  use_amp: true
+  max_grad_norm: 1.0
+  device: "auto"         # auto | cpu | cuda | cuda:0
 
+optimizer:
+  name: "adamw"          # adam | adamw | sgd
+  lr: 0.0001
+  weight_decay: 0.0001
+  betas: [0.9, 0.999]
+  momentum: 0.9
+
+scheduler:
+  enabled: true
+  name: "cosine"         # cosine | steplr | reducelronplateau
+  params:
+    T_max: 50
+    eta_min: 0.000001
+
+logging:
+  output_root: "./outputs"
+  experiment_name: "baseline_unet"
+  save_checkpoint_every: 1
+
+checkpoint:
+  monitor: "val_mask_dice"
+  mode: "max"            # max | min
+  
 patching:
   build_splits: ["train"]
   patch_size: 256
@@ -122,3 +150,22 @@ metrics:
         threshold: 0.5
         both_empty_value: 0.0
         one_empty_value: null
+
+validation:
+  sliding_window:
+    patch_size: 256
+    stride: 128
+    tile_batch_size: 4
+
+  threshold: 0.5
+
+
+inference:
+  threshold: 0.5
+
+  save_probability_maps: true
+  save_binary_masks: true
+  save_overlays: true
+
+  save_boundary_probability_maps: true
+  save_boundary_masks: true

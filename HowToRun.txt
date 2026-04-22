@@ -5,3 +5,18 @@ sanity check:
 python scripts/sanity_check_dataloader.py --split train #patches
 python scripts/sanity_check_dataloader.py --split val   #full image
 
+training: 
+python scripts/train.py --dataset-config configs/dataset.yaml --train-config configs/train.yaml --model-config configs/model.yaml
+
+validation:
+python scripts/validate.py --checkpoint outputs/baseline_unet/20260422_123456/checkpoints/best.pth --split val
+python scripts/validate.py --checkpoint outputs/baseline_unet/20260422_123456/checkpoints/best.pth --split test
+
+inference:
+python scripts/infer.py --checkpoint outputs/baseline_unet/20260422_123456/checkpoints/best.pth --split val
+python scripts/infer.py --checkpoint outputs/baseline_unet/20260422_123456/checkpoints/best.pth --split test
+
+plot logs:
+Using run dir: python scripts/plot_logs.py --run-dir outputs/baseline_unet/20260422_123456
+Using the CSV directly: python scripts/plot_logs.py --history-csv outputs/baseline_unet/20260422_123456/logs/history.csv
+With smoothing: python scripts/plot_logs.py --run-dir outputs/baseline_unet/20260422_123456 --smooth-window 3
