@@ -40,6 +40,18 @@ def main(dataset_config: str, train_config: str) -> None:
         ]
     )
 
+    run_cmd(
+        [
+            sys.executable,
+            "-m",
+            "src.data.validate_prepared_data",
+            "--dataset-config",
+            dataset_config,
+            "--train-config",
+            train_config,
+        ]
+    )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

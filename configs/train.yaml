@@ -11,5 +11,49 @@ patching:
   stride: 128
 
 sampling:
-  use_balanced_sampling: false
-  negative_to_positive_ratio: 1.0
+  enabled: true
+  total_samples: 12000
+  random_state: 42
+  ratios:
+    boundary: 0.4
+    positive: 0.4
+    negative: 0.2
+
+transforms:
+  train_mode: "general"         # none | general | general_artifact_aware
+  val_mode: "none"
+  test_mode: "none"
+
+  normalization:
+    mode: "none"                # none | dataset | imagenet
+    mean: null
+    std: null
+
+  general:
+    hflip_p: 0.5
+    vflip_p: 0.5
+    rotate90_p: 0.5
+
+    shift_scale_rotate_p: 0.5
+    shift_limit: 0.0625
+    scale_limit: 0.10
+    rotate_limit: 20
+
+    brightness_contrast_p: 0.3
+    brightness_limit: 0.20
+    contrast_limit: 0.20
+
+    gamma_p: 0.3
+    gamma_limit: [80, 120]
+
+  artifact_aware:
+    artifact_block_p: 0.4
+
+    hair_p: 0.3
+    min_hairs: 1
+    max_hairs: 6
+    max_hair_thickness: 2
+
+    blur_p: 0.2
+    noise_p: 0.15
+    shadow_p: 0.2

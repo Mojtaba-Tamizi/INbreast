@@ -2,3 +2,5 @@ numpy
 pandas
 PyYAML
 opencv-python
+albumentations
+torch

@@ -1,1 +1,7 @@
-python scripts/prepare_data.py --config configs/dataset.yaml
+Creating and preparing data:
+python scripts/prepare_data.py --dataset-config configs/dataset.yaml --train-config configs/train.yaml
+
+sanity check:
+python scripts/sanity_check_dataloader.py --split train #patches
+python scripts/sanity_check_dataloader.py --split val   #full image
+
