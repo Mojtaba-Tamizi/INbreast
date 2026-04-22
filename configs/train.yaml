@@ -57,3 +57,68 @@ transforms:
     blur_p: 0.2
     noise_p: 0.15
     shadow_p: 0.2
+
+
+loss:
+  terms:
+    - name: "bce"
+      weight: 1.0
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+
+    - name: "dice"
+      weight: 1.0
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        smooth: 1.0
+
+    - name: "bce"
+      weight: 0.5
+      pred_key: "boundary"
+      target_key: "boundary"
+      params:
+        from_logits: true
+
+
+metrics:
+  terms:
+    - name: "dice"
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        threshold: 0.5
+
+    - name: "iou"
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        threshold: 0.5
+
+    - name: "sensitivity"
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        threshold: 0.5
+
+    - name: "specificity"
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        threshold: 0.5
+
+    - name: "hd95"
+      pred_key: "mask"
+      target_key: "mask"
+      params:
+        from_logits: true
+        threshold: 0.5
+        both_empty_value: 0.0
+        one_empty_value: null
