@@ -47,6 +47,83 @@ def resolve_device(device_str: str) -> torch.device:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
 
+def count_parameters(model: torch.nn.Module) -> dict[str, int]:
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    non_trainable_params = total_params - trainable_params
+
+    return {
+        "total": total_params,
+        "trainable": trainable_params,
+        "non_trainable": non_trainable_params,
+    }
+
+
+def count_parameters_in_module(module: torch.nn.Module) -> dict[str, int]:
+    total_params = sum(p.numel() for p in module.parameters())
+    trainable_params = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    non_trainable_params = total_params - trainable_params
+
+    return {
+        "total": total_params,
+        "trainable": trainable_params,
+        "non_trainable": non_trainable_params,
+    }
+
+
+def get_model_module_parameter_summary(model: torch.nn.Module) -> dict[str, dict[str, int]]:
+    summary: dict[str, dict[str, int]] = {}
+
+    module_names = [
+        "encoder",
+        "dec3",
+        "dec2",
+        "dec1",
+        "final_up_proj",
+        "final_up_refine",
+        "fusion",
+        "post_no_fusion",
+        "boundary_head",
+        "seg_head",
+    ]
+
+    for name in module_names:
+        if hasattr(model, name):
+            module = getattr(model, name)
+            if module is not None:
+                summary[name] = count_parameters_in_module(module)
+
+    return summary
+
+
+def print_model_parameter_summary(model: torch.nn.Module) -> None:
+    overall = count_parameters(model)
+
+    print(
+        "[INFO] Model params: "
+        f"total={overall['total']:,} "
+        f"trainable={overall['trainable']:,} "
+        f"non_trainable={overall['non_trainable']:,}"
+    )
+    print(
+        "[INFO] Model params (M): "
+        f"total={overall['total'] / 1e6:.3f}M "
+        f"trainable={overall['trainable'] / 1e6:.3f}M "
+        f"non_trainable={overall['non_trainable'] / 1e6:.3f}M"
+    )
+
+    module_summary = get_model_module_parameter_summary(model)
+
+    if len(module_summary) > 0:
+        print("[INFO] Parameter count by module:")
+        for name, stats in module_summary.items():
+            print(
+                f"  - {name}: "
+                f"total={stats['total']:,} "
+                f"trainable={stats['trainable']:,} "
+                f"non_trainable={stats['non_trainable']:,} "
+                f"(total={stats['total'] / 1e6:.3f}M)"
+            )
 
 def build_optimizer(model: torch.nn.Module, cfg: dict):
     name = cfg["optimizer"]["name"].lower()
@@ -258,6 +335,8 @@ def main(
     )
 
     model = build_model_from_config(model_config_path).to(device)
+    param_info = count_parameters(model)
+    print_model_parameter_summary(model)
     criterion = build_loss_from_config(train_config_path)
     metrics_fn = build_metrics_from_config(train_config_path)
 
@@ -265,7 +344,7 @@ def main(
     scheduler = build_scheduler(optimizer, train_cfg)
 
     use_amp = bool(train_cfg["training"].get("use_amp", False)) and device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     val_params = build_validation_params_from_config(train_config_path)
 
@@ -301,7 +380,7 @@ def main(
             max_grad_norm=max_grad_norm,
             scheduler=None,
             scheduler_step_on_batch=False,
-            log_interval=50,
+            log_interval=100,
         )
 
         row = {"epoch": epoch}

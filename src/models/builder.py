@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import yaml
 
+from src.models.mbs_swin_unet import MBSSwinUNet
 from src.models.unet import UNet
 
 
 MODEL_REGISTRY = {
     "unet": UNet,
+    "mbs_swin_unet": MBSSwinUNet,
 }
 
 

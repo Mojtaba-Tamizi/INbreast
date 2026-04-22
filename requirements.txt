@@ -6,3 +6,4 @@ albumentations
 torch
 scipy
 matplotlib
+timm

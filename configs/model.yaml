@@ -1,15 +1,50 @@
 model:
-  name: "unet"
+  name: "mbs_swin_unet"
 
   params:
+    image_size: 256          # change to 512 later if needed
     in_channels: 3
     num_classes: 1
 
-    encoder_channels: [64, 128, 256, 512]
-    bottleneck_channels: 1024
+    backbone_name: "swin_tiny_patch4_window7_224"
+    backbone_pretrained: false
 
-    use_batchnorm: true
-    bilinear: true
+    decoder_channels: [384, 192, 96, 64]
+    refine_dropout: 0.0
 
-    aux_heads:
-      boundary: true
+    use_multiscale_fusion: true
+    fusion_levels: ["d3", "d2", "df"]
+    fusion_channels: 64
+
+    use_boundary_head: true
+
+    use_moe_head: false
+    num_experts: 2
+    gate_hidden_dim: 32
+
+    seg_head_hidden_channels: 64
+    boundary_head_hidden_channels: 64
+    expert_hidden_channels: 64
+
+    activation: "gelu"
+    norm: "groupnorm"
+    return_aux_by_default: false
+
+
+
+## for Unet use following
+# model:
+#   name: "unet"
+
+#   params:
+#     in_channels: 3
+#     num_classes: 1
+
+#     encoder_channels: [64, 128, 256, 512]
+#     bottleneck_channels: 1024
+
+#     use_batchnorm: true
+#     bilinear: true
+
+#     aux_heads:
+#       boundary: true

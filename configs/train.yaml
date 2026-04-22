@@ -3,12 +3,30 @@ seed: 42
 training:
   epochs: 50
   batch_size: 8
-  num_workers: 4
+  num_workers: 0
   pin_memory: true
-  val_every: 1
-  use_amp: true
+  val_every: 50
+  use_amp: false
   max_grad_norm: 1.0
-  device: "auto"         # auto | cpu | cuda | cuda:0
+  device: "cuda"         # auto | cpu | cuda | cuda:0
+
+validation:
+  sliding_window:
+    patch_size: 256
+    stride: 128
+    tile_batch_size: 4
+
+  threshold: 0.5
+
+inference:
+  threshold: 0.5
+
+  save_probability_maps: true
+  save_binary_masks: true
+  save_overlays: true
+
+  save_boundary_probability_maps: true
+  save_boundary_masks: true
 
 optimizer:
   name: "adamw"          # adam | adamw | sgd
@@ -26,7 +44,7 @@ scheduler:
 
 logging:
   output_root: "./outputs"
-  experiment_name: "baseline_unet"
+  experiment_name: "baseline"
   save_checkpoint_every: 1
 
 checkpoint:
@@ -53,29 +71,29 @@ transforms:
   test_mode: "none"
 
   normalization:
-    mode: "none"                # none | dataset | imagenet
+    mode: "imagenet"                # none | dataset | imagenet
     mean: null
     std: null
 
   general:
-    hflip_p: 0.5
-    vflip_p: 0.5
-    rotate90_p: 0.5
+    hflip_p: 0.3
+    vflip_p: 0.3
+    rotate90_p: 0.3
 
-    shift_scale_rotate_p: 0.5
+    shift_scale_rotate_p: 0.3
     shift_limit: 0.0625
     scale_limit: 0.10
     rotate_limit: 20
 
     brightness_contrast_p: 0.3
-    brightness_limit: 0.20
-    contrast_limit: 0.20
+    brightness_limit: 0.10
+    contrast_limit: 0.10
 
-    gamma_p: 0.3
+    gamma_p: 0.1
     gamma_limit: [80, 120]
 
   artifact_aware:
-    artifact_block_p: 0.4
+    artifact_block_p: 0.3
 
     hair_p: 0.3
     min_hairs: 1
@@ -142,30 +160,11 @@ metrics:
         from_logits: true
         threshold: 0.5
 
-    - name: "hd95"
-      pred_key: "mask"
-      target_key: "mask"
-      params:
-        from_logits: true
-        threshold: 0.5
-        both_empty_value: 0.0
-        one_empty_value: null
-
-validation:
-  sliding_window:
-    patch_size: 256
-    stride: 128
-    tile_batch_size: 4
-
-  threshold: 0.5
-
-
-inference:
-  threshold: 0.5
-
-  save_probability_maps: true
-  save_binary_masks: true
-  save_overlays: true
-
-  save_boundary_probability_maps: true
-  save_boundary_masks: true
+    # - name: "hd95"
+    #   pred_key: "mask"
+    #   target_key: "mask"
+    #   params:
+    #     from_logits: true
+    #     threshold: 0.5
+    #     both_empty_value: 0.0
+    #     one_empty_value: null
