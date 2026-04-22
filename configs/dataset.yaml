@@ -1,0 +1,33 @@
+project_name: skin_lesion_segmentation
+
+paths:
+  raw_root: "F:/Datasets/Segmentation/ISIC2018"
+  processed_root: "./data/processed"
+  indices_dir: "./data/processed/indices"
+  boundaries_dir: "./data/processed/boundaries"
+  patch_indices_dir: "./data/processed/patch_indices"
+  stats_dir: "./data/processed/stats"
+
+boundary:
+  mode: "xor_erode"      # xor_erode | morph_gradient
+  kernel_size: 3
+  iterations: 1
+  suffix: "_boundary"
+
+dataset:
+  name: ISIC2018
+  task: lesion_segmentation
+  image_ext: ".jpg"
+  mask_ext: ".png"
+
+  train:
+    image_dir: "ISIC2018_Task1-2_Training_Input"
+    mask_dir: "ISIC2018_Task1_Training_GroundTruth"
+
+  val:
+    image_dir: "ISIC2018_Task1-2_Validation_Input"
+    mask_dir: "ISIC2018_Task1_Validation_GroundTruth"
+
+  test:
+    image_dir: "ISIC2018_Task1-2_Test_Input"
+    mask_dir: "ISIC2018_Task1_Test_GroundTruth"

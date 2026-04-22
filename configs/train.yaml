@@ -1,0 +1,15 @@
+seed: 42
+
+training:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+patching:
+  build_splits: ["train"]
+  patch_size: 256
+  stride: 128
+
+sampling:
+  use_balanced_sampling: false
+  negative_to_positive_ratio: 1.0
