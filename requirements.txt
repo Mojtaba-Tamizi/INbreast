@@ -1,9 +1,0 @@
-numpy
-pandas
-PyYAML
-opencv-python
-albumentations
-torch
-scipy
-matplotlib
-timm
