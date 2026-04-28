@@ -225,18 +225,24 @@ def validate_patch_file(
 
     assert_true(stats["split"] == split_name, f"Stats split mismatch in {stats_path}")
     assert_true(stats["total_patches"] == len(patch_df), f"Stats total_patches mismatch in {stats_path}")
+
+    # Inclusive counts:
+    # - foreground_patches: any patch containing at least one lesion pixel
+    # - background_patches: patches with no lesion pixels
+    # - boundary_patches: any patch containing at least one boundary pixel
     assert_true(
-        stats["positive_patches"] == int((patch_df["has_fg"] == 1).sum()),
-        f"Stats positive_patches mismatch in {stats_path}",
+        stats["foreground_patches"] == int((patch_df["has_fg"] == 1).sum()),
+        f"Stats foreground_patches mismatch in {stats_path}",
     )
     assert_true(
-        stats["negative_patches"] == int((patch_df["has_fg"] == 0).sum()),
-        f"Stats negative_patches mismatch in {stats_path}",
+        stats["background_patches"] == int((patch_df["has_fg"] == 0).sum()),
+        f"Stats background_patches mismatch in {stats_path}",
     )
     assert_true(
         stats["boundary_patches"] == int((patch_df["has_boundary"] == 1).sum()),
         f"Stats boundary_patches mismatch in {stats_path}",
     )
+
     assert_true(
         stats["total_fg_pixels"] == int(patch_df["fg_pixels"].sum()),
         f"Stats total_fg_pixels mismatch in {stats_path}",
@@ -250,17 +256,27 @@ def validate_patch_file(
         f"Stats total_boundary_pixels mismatch in {stats_path}",
     )
 
+    # Exclusive patch classes:
+    # - negative: no lesion pixels
+    # - positive: lesion pixels exist, but no boundary pixels
+    # - boundary: boundary pixels exist
     expected_type_counts = {
-        k: int(v) for k, v in patch_df["patch_type"].value_counts().to_dict().items()
+        "negative": int((patch_df["patch_type"] == "negative").sum()),
+        "positive": int((patch_df["patch_type"] == "positive").sum()),
+        "boundary": int((patch_df["patch_type"] == "boundary").sum()),
     }
-    got_type_counts = {k: int(v) for k, v in stats["patch_type_counts"].items()}
+    got_type_counts = {
+        "negative": int(stats["patch_type_counts"].get("negative", 0)),
+        "positive": int(stats["patch_type_counts"].get("positive", 0)),
+        "boundary": int(stats["patch_type_counts"].get("boundary", 0)),
+    }
     assert_true(got_type_counts == expected_type_counts, f"patch_type_counts mismatch in {stats_path}")
 
     print(f"[CHECK] {split_name}_patches.csv passed.")
     print(
         f"[SUMMARY] {split_name}: patches={len(patch_df)}, "
-        f"positive={(patch_df['has_fg'] == 1).sum()}, "
-        f"negative={(patch_df['has_fg'] == 0).sum()}, "
+        f"foreground={(patch_df['has_fg'] == 1).sum()}, "
+        f"background={(patch_df['has_fg'] == 0).sum()}, "
         f"boundary={(patch_df['has_boundary'] == 1).sum()}"
     )
 

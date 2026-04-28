@@ -15,6 +15,25 @@ def load_yaml(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+def _pad_image_to_min_size(
+    image: np.ndarray,
+    min_h: int,
+    min_w: int,
+) -> tuple[np.ndarray, tuple[int, int]]:
+    orig_h, orig_w = image.shape[:2]
+
+    pad_h = max(0, min_h - orig_h)
+    pad_w = max(0, min_w - orig_w)
+
+    if pad_h == 0 and pad_w == 0:
+        return image, (orig_h, orig_w)
+
+    padded = np.pad(
+        image,
+        pad_width=((0, pad_h), (0, pad_w), (0, 0)),
+        mode="reflect",
+    )
+    return padded, (orig_h, orig_w)
 
 def _normalize_model_outputs(outputs: Any) -> dict[str, torch.Tensor]:
     if isinstance(outputs, torch.Tensor):
@@ -64,6 +83,68 @@ def _infer_required_output_keys(criterion=None, metrics_fn=None) -> list[str]:
     return sorted(keys)
 
 
+# @torch.no_grad()
+# def sliding_window_predict_outputs(
+#     model: torch.nn.Module,
+#     image: np.ndarray,
+#     patch_size: int,
+#     stride: int,
+#     device: torch.device | str,
+#     batch_size: int = 4,
+#     transform: Any | None = None,
+#     output_keys: list[str] | None = None,
+# ) -> dict[str, np.ndarray]:
+#     model.eval()
+
+#     image_h, image_w = image.shape[:2]
+#     boxes = generate_sliding_window_boxes(
+#         image_h=image_h,
+#         image_w=image_w,
+#         patch_size=patch_size,
+#         stride=stride,
+#     )
+
+#     pred_sums: dict[str, np.ndarray] = {}
+#     count_map = np.zeros((1, image_h, image_w), dtype=np.float32)
+
+#     for start_idx in range(0, len(boxes), batch_size):
+#         batch_tensor, batch_boxes = build_tile_batch(
+#             image=image,
+#             boxes=boxes,
+#             start_idx=start_idx,
+#             batch_size=batch_size,
+#             transform=transform,
+#         )
+#         batch_tensor = batch_tensor.to(device, non_blocking=True)
+
+#         outputs = _normalize_model_outputs(model(batch_tensor))
+
+#         if output_keys is None:
+#             current_keys = list(outputs.keys())
+#         else:
+#             current_keys = output_keys
+
+#         preds_np_dict = {
+#             key: outputs[key].detach().cpu().numpy()
+#             for key in current_keys
+#         }
+
+#         for key, preds_np in preds_np_dict.items():
+#             if key not in pred_sums:
+#                 pred_sums[key] = np.zeros(
+#                     (preds_np.shape[1], image_h, image_w),
+#                     dtype=np.float32,
+#                 )
+
+#             for pred, (x0, y0, x1, y1) in zip(preds_np, batch_boxes):
+#                 pred_sums[key][:, y0:y1, x0:x1] += pred
+
+#         for x0, y0, x1, y1 in batch_boxes:
+#             count_map[:, y0:y1, x0:x1] += 1.0
+
+#     count_map = np.clip(count_map, a_min=1e-8, a_max=None)
+#     stitched = {key: pred_sum / count_map for key, pred_sum in pred_sums.items()}
+#     return stitched
 @torch.no_grad()
 def sliding_window_predict_outputs(
     model: torch.nn.Module,
@@ -76,6 +157,13 @@ def sliding_window_predict_outputs(
     output_keys: list[str] | None = None,
 ) -> dict[str, np.ndarray]:
     model.eval()
+
+    # Pad small images so every tile fed to the model matches patch_size
+    image, (orig_h, orig_w) = _pad_image_to_min_size(
+        image=image,
+        min_h=patch_size,
+        min_w=patch_size,
+    )
 
     image_h, image_w = image.shape[:2]
     boxes = generate_sliding_window_boxes(
@@ -124,9 +212,14 @@ def sliding_window_predict_outputs(
             count_map[:, y0:y1, x0:x1] += 1.0
 
     count_map = np.clip(count_map, a_min=1e-8, a_max=None)
-    stitched = {key: pred_sum / count_map for key, pred_sum in pred_sums.items()}
-    return stitched
 
+    stitched = {}
+    for key, pred_sum in pred_sums.items():
+        pred = pred_sum / count_map
+        pred = pred[:, :orig_h, :orig_w]   # crop back to original image size
+        stitched[key] = pred
+
+    return stitched
 
 def build_validation_params_from_config(train_config_path: str) -> dict[str, Any]:
     cfg = load_yaml(train_config_path)

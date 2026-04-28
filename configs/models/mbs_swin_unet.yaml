@@ -2,7 +2,7 @@ model:
   name: "mbs_swin_unet"
 
   params:
-    image_size: 256          # change to 512 later if needed
+    image_size: 512          # change to 512 later if needed
     in_channels: 3
     num_classes: 1
 
@@ -32,19 +32,3 @@ model:
 
 
 
-## for Unet use following
-# model:
-#   name: "unet"
-
-#   params:
-#     in_channels: 3
-#     num_classes: 1
-
-#     encoder_channels: [64, 128, 256, 512]
-#     bottleneck_channels: 1024
-
-#     use_batchnorm: true
-#     bilinear: true
-
-#     aux_heads:
-#       boundary: true

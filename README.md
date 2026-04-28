@@ -1,4 +1,4 @@
-# Skin Lesion Segmentation on ISIC2018
+# Skin Lesion Segmentation on ISIC2018 (TASK-1)
 
 This repository provides a **modular, experiment-friendly pipeline** for **skin lesion segmentation** on the **ISIC2018 Task 1** dataset.
 
@@ -141,6 +141,7 @@ skin_lesion_segmentation/
 ├── requirements.txt
 └── README.md
 ```
+---
 
 # 4. Typical workflow for a new experiment
 
@@ -156,6 +157,7 @@ A recommended experiment workflow is:
 8. run `infer.py` for final prediction outputs
 9. plot logs and compare experiments
 
+---
 
 # 5. Common commands
 
@@ -194,5 +196,14 @@ python scripts/infer.py --checkpoint outputs/baseline_unet/20260422_123456/check
 python scripts/plot_logs.py --run-dir outputs/baseline_unet/20260422_123456
 ```
 
----
+## Resume from YAML
+resume:
+  enabled: true
+  checkpoint_path: "outputs/baseline/20260427_113425/checkpoints/last.pth"
 
+## Resume from CLI:
+python scripts/train.py \
+  --dataset-config configs/dataset.yaml \
+  --train-config configs/train.yaml \
+  --model-config configs/model.yaml \
+  --resume-checkpoint outputs/baseline/20260427_113425/checkpoints/last.pth

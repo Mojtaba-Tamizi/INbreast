@@ -2,19 +2,30 @@ seed: 42
 
 training:
   epochs: 50
-  batch_size: 8
+  batch_size: 2
   num_workers: 0
   pin_memory: true
-  val_every: 50
+  val_every: 1
   use_amp: false
   max_grad_norm: 1.0
   device: "cuda"         # auto | cpu | cuda | cuda:0
 
+resume:
+  enabled: false
+  checkpoint_path: null
+  strict: true
+  load_optimizer: true
+  load_scheduler: true
+  load_scaler: true
+  reset_epoch: false
+  reset_best_score: false
+  reset_history: false
+
 validation:
   sliding_window:
-    patch_size: 256
-    stride: 128
-    tile_batch_size: 4
+    patch_size: 512
+    stride: 384
+    tile_batch_size: 2
 
   threshold: 0.5
 
@@ -53,8 +64,8 @@ checkpoint:
   
 patching:
   build_splits: ["train"]
-  patch_size: 256
-  stride: 128
+  patch_size: 512
+  stride: 384
 
 sampling:
   enabled: true

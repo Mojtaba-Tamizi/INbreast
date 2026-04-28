@@ -47,6 +47,7 @@ def resolve_device(device_str: str) -> torch.device:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
 
+
 def count_parameters(model: torch.nn.Module) -> dict[str, int]:
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -124,6 +125,55 @@ def print_model_parameter_summary(model: torch.nn.Module) -> None:
                 f"non_trainable={stats['non_trainable']:,} "
                 f"(total={stats['total'] / 1e6:.3f}M)"
             )
+
+
+def load_training_checkpoint(
+    checkpoint_path: str,
+    model: torch.nn.Module,
+    device: torch.device,
+    optimizer=None,
+    scheduler=None,
+    scaler=None,
+    strict: bool = True,
+    load_optimizer: bool = True,
+    load_scheduler: bool = True,
+    load_scaler: bool = True,
+) -> dict:
+    ckpt = torch.load(checkpoint_path, map_location=device)
+
+    if not isinstance(ckpt, dict):
+        raise ValueError(f"Unsupported checkpoint format: {type(ckpt)}")
+
+    if "model_state_dict" in ckpt:
+        model.load_state_dict(ckpt["model_state_dict"], strict=strict)
+    else:
+        model.load_state_dict(ckpt, strict=strict)
+
+    if optimizer is not None and load_optimizer and ckpt.get("optimizer_state_dict") is not None:
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+
+    if scheduler is not None and load_scheduler and ckpt.get("scheduler_state_dict") is not None:
+        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+
+    if scaler is not None and load_scaler and ckpt.get("scaler_state_dict") is not None:
+        scaler.load_state_dict(ckpt["scaler_state_dict"])
+
+    return ckpt
+
+
+def resolve_resume_checkpoint(
+    train_cfg: dict,
+    cli_resume_checkpoint: str | None,
+) -> str | None:
+    if cli_resume_checkpoint is not None:
+        return cli_resume_checkpoint
+
+    resume_cfg = train_cfg.get("resume", {})
+    if resume_cfg.get("enabled", False):
+        return resume_cfg.get("checkpoint_path", None)
+
+    return None
+
 
 def build_optimizer(model: torch.nn.Module, cfg: dict):
     name = cfg["optimizer"]["name"].lower()
@@ -218,6 +268,7 @@ def save_checkpoint(
     scheduler,
     scaler,
     best_score: float | None,
+    best_epoch: int | None,
     history: list[dict],
 ) -> None:
     ckpt = {
@@ -227,6 +278,7 @@ def save_checkpoint(
         "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
         "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
         "best_score": best_score,
+        "best_epoch": best_epoch,
         "history": history,
     }
     torch.save(ckpt, path)
@@ -255,6 +307,28 @@ def print_epoch_log(epoch: int, total_epochs: int, row: dict[str, float]) -> Non
         f"lr={row.get('lr', float('nan')):.6f}"
     )
     print(msg)
+
+
+def infer_best_epoch_from_history(
+    history: list[dict],
+    monitor_key: str,
+    monitor_mode: str,
+) -> int | None:
+    candidates = [row for row in history if monitor_key in row]
+    if len(candidates) == 0:
+        return None
+
+    best_row = candidates[0]
+    for row in candidates[1:]:
+        current = float(row[monitor_key])
+        best_val = float(best_row[monitor_key])
+
+        if monitor_mode == "max" and current > best_val:
+            best_row = row
+        elif monitor_mode == "min" and current < best_val:
+            best_row = row
+
+    return int(best_row["epoch"])
 
 
 def build_dataloaders(
@@ -310,6 +384,7 @@ def main(
     dataset_config_path: str,
     train_config_path: str,
     model_config_path: str,
+    cli_resume_checkpoint: str | None = None,
 ) -> None:
     train_cfg = load_yaml(train_config_path)
     model_cfg = load_yaml(model_config_path)
@@ -335,8 +410,10 @@ def main(
     )
 
     model = build_model_from_config(model_config_path).to(device)
-    param_info = count_parameters(model)
     print_model_parameter_summary(model)
+    param_info = count_parameters(model)
+    module_param_info = get_model_module_parameter_summary(model)
+
     criterion = build_loss_from_config(train_config_path)
     metrics_fn = build_metrics_from_config(train_config_path)
 
@@ -358,16 +435,70 @@ def main(
     monitor_key = train_cfg["checkpoint"]["monitor"]
     monitor_mode = train_cfg["checkpoint"]["mode"]
 
-    history: list[dict] = []
-    best_score = None
-    best_epoch = None
-
     summary_path = run_dir / "logs" / "summary.json"
     history_csv_path = run_dir / "logs" / "history.csv"
     last_ckpt_path = run_dir / "checkpoints" / "last.pth"
     best_ckpt_path = run_dir / "checkpoints" / "best.pth"
 
-    for epoch in range(1, total_epochs + 1):
+    # --------------------------------------------------
+    # Resume logic
+    # --------------------------------------------------
+    resume_cfg = train_cfg.get("resume", {})
+    resume_checkpoint = resolve_resume_checkpoint(train_cfg, cli_resume_checkpoint)
+
+    start_epoch = 1
+    history: list[dict] = []
+    best_score = None
+    best_epoch = None
+    resumed_from = None
+
+    if resume_checkpoint is not None:
+        print(f"[INFO] Resuming from checkpoint: {resume_checkpoint}")
+
+        ckpt = load_training_checkpoint(
+            checkpoint_path=resume_checkpoint,
+            model=model,
+            device=device,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
+            strict=bool(resume_cfg.get("strict", True)),
+            load_optimizer=bool(resume_cfg.get("load_optimizer", True)),
+            load_scheduler=bool(resume_cfg.get("load_scheduler", True)),
+            load_scaler=bool(resume_cfg.get("load_scaler", True)),
+        )
+
+        resumed_from = str(Path(resume_checkpoint).resolve())
+
+        if not bool(resume_cfg.get("reset_epoch", False)):
+            start_epoch = int(ckpt.get("epoch", 0)) + 1
+
+        if not bool(resume_cfg.get("reset_best_score", False)):
+            best_score = ckpt.get("best_score", None)
+            best_epoch = ckpt.get("best_epoch", None)
+
+        if not bool(resume_cfg.get("reset_history", False)):
+            history = ckpt.get("history", [])
+
+        if best_epoch is None and best_score is not None and len(history) > 0:
+            best_epoch = infer_best_epoch_from_history(
+                history=history,
+                monitor_key=monitor_key,
+                monitor_mode=monitor_mode,
+            )
+
+        print(
+            f"[INFO] Resume state: start_epoch={start_epoch}, "
+            f"best_score={best_score}, best_epoch={best_epoch}, history_len={len(history)}"
+        )
+
+    if start_epoch > total_epochs:
+        raise ValueError(
+            f"start_epoch={start_epoch} is greater than total_epochs={total_epochs}. "
+            f"Increase training.epochs or enable reset_epoch."
+        )
+
+    for epoch in range(start_epoch, total_epochs + 1):
         train_results = train_one_epoch(
             model=model,
             loader=train_loader,
@@ -428,6 +559,7 @@ def main(
             scheduler=scheduler,
             scaler=scaler,
             best_score=best_score,
+            best_epoch=best_epoch,
             history=history,
         )
 
@@ -440,6 +572,7 @@ def main(
                 scheduler=scheduler,
                 scaler=scaler,
                 best_score=best_score,
+                best_epoch=best_epoch,
                 history=history,
             )
 
@@ -460,6 +593,7 @@ def main(
                     scheduler=scheduler,
                     scaler=scaler,
                     best_score=best_score,
+                    best_epoch=best_epoch,
                     history=history,
                 )
 
@@ -469,10 +603,15 @@ def main(
             "run_dir": str(run_dir.resolve()),
             "device": str(device),
             "model_name": model_cfg["model"]["name"],
+            "model_config_path": str(Path(model_config_path).resolve()),
+            "parameter_summary": param_info,
+            "module_parameter_summary": module_param_info,
             "best_score": best_score,
             "best_epoch": best_epoch,
             "monitor_key": monitor_key,
             "monitor_mode": monitor_mode,
+            "start_epoch": start_epoch,
+            "resumed_from": resumed_from,
             "history_csv": str(history_csv_path.resolve()),
             "last_checkpoint": str(last_ckpt_path.resolve()),
             "best_checkpoint": str(best_ckpt_path.resolve()),
@@ -501,10 +640,17 @@ if __name__ == "__main__":
         type=str,
         default="configs/model.yaml",
     )
+    parser.add_argument(
+        "--resume-checkpoint",
+        type=str,
+        default=None,
+        help="Optional checkpoint path to resume training from",
+    )
     args = parser.parse_args()
 
     main(
         dataset_config_path=args.dataset_config,
         train_config_path=args.train_config,
         model_config_path=args.model_config,
+        cli_resume_checkpoint=args.resume_checkpoint,
     )

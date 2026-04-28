@@ -128,21 +128,46 @@ def build_stats(
     patch_size: int,
     stride: int,
 ) -> dict:
+    # Inclusive counts:
+    # - foreground_patches: any patch that contains at least one lesion pixel
+    # - background_patches: patches with no lesion pixels
+    # - boundary_patches: any patch that contains at least one boundary pixel
+    foreground_patches = int((patch_df["has_fg"] == 1).sum())
+    background_patches = int((patch_df["has_fg"] == 0).sum())
+    boundary_patches = int((patch_df["has_boundary"] == 1).sum())
+
+    # Exclusive patch classes:
+    # - negative: no lesion pixels
+    # - positive: lesion pixels exist, but no boundary pixels
+    # - boundary: boundary pixels exist
+    patch_type_counts = {
+        k: int(v) for k, v in patch_df["patch_type"].value_counts().to_dict().items()
+    }
+
     stats = {
         "split": split_name,
         "patch_size": int(patch_size),
         "stride": int(stride),
         "total_patches": int(len(patch_df)),
-        "positive_patches": int((patch_df["has_fg"] == 1).sum()),
-        "negative_patches": int((patch_df["has_fg"] == 0).sum()),
-        "boundary_patches": int((patch_df["has_boundary"] == 1).sum()),
+
+        # Inclusive counts
+        "foreground_patches": foreground_patches,
+        "background_patches": background_patches,
+        "boundary_patches": boundary_patches,
+
+        # Pixel-level totals
         "total_fg_pixels": int(patch_df["fg_pixels"].sum()),
         "total_bg_pixels": int(patch_df["bg_pixels"].sum()),
         "total_boundary_pixels": int(patch_df["boundary_pixels"].sum()),
+
+        # Exclusive class counts
         "patch_type_counts": {
-            k: int(v) for k, v in patch_df["patch_type"].value_counts().to_dict().items()
+            "negative": int(patch_type_counts.get("negative", 0)),
+            "positive": int(patch_type_counts.get("positive", 0)),
+            "boundary": int(patch_type_counts.get("boundary", 0)),
         },
     }
+
     return stats
 
 
